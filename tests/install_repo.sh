@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# Run in disposable Fedora/Red Hat UBI containers only.
+set -euo pipefail
+trap 'echo "RPM test failed at line $LINENO" >&2' ERR
+base_url="${1:?repository URL required}"
+fixtures="${2:?fixture directory required}"
+mode="${3:-candidate}"
+arch="$(rpm --eval '%{_arch}')"
+fingerprint=23AB58683E85FE7236D369713D19EA52D181CC36
+dnf install -y ca-certificates gnupg2 python3
+if ! command -v curl >/dev/null 2>&1; then dnf install -y curl; fi
+if [ "$mode" = live ]; then
+  dnf install -y sudo
+  python3 - > /tmp/documented-install.sh <<'PY'
+import pathlib,re
+first=lambda name: re.search(r'```bash\n(.*?)```',pathlib.Path('/work',name).read_text(),re.S).group(1)
+assert first('README.md')==first('README.zh-CN.md')
+print(first('README.md'))
+PY
+  bash /tmp/documented-install.sh
+fi
+curl -fsSL "$base_url/flashdata.asc" -o /tmp/flashdata.asc
+actual="$(gpg --batch --show-keys --with-colons /tmp/flashdata.asc 2>/dev/null | awk -F: '$1 == "fpr" {print $10; exit}')"
+test "$actual" = "$fingerprint"
+install -d -m 0755 /etc/pki/rpm-gpg
+install -m 0644 /tmp/flashdata.asc /etc/pki/rpm-gpg/RPM-GPG-KEY-flashdata
+rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-flashdata
+cat > /etc/yum.repos.d/flashdata.repo <<EOF
+[flashdata]
+name=FlashData CLI stable
+baseurl=$base_url/stable/\$basearch/
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-flashdata
+sslverify=1
+includepkgs=flashdata
+metadata_expire=6h
+skip_if_unavailable=0
+EOF
+dnf -y --refresh --disablerepo='*' --enablerepo=flashdata makecache
+dnf install -y flashdata
+test "$(rpm -q --qf '%{VERSION}-%{RELEASE}.%{ARCH}' flashdata)" = "1.0.0-1.$arch"
+flashdata --version --json | tee /tmp/flashdata-version.json
+python3 - <<'PY'
+import json
+v=json.load(open('/tmp/flashdata-version.json'))
+assert v['ok'] and v['data']['version']=='1.0.0'
+assert v['data']['commit']=='e9f7a2f7b0cd62e74fc2c79b8c0f64273adbe2dc'
+PY
+flashdata --help
+flashdata commands --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert {"auth","bulk","query","runs"} <= {c["name"] for c in d["data"]["commands"]}'
+test -s /usr/share/doc/flashdata/README.zh-CN.md
+test -s /usr/share/doc/flashdata/examples/query.json
+test -s /usr/share/man/man1/flashdata.1.gz
+test -s /usr/share/licenses/flashdata/LICENSE
+rpm -V flashdata
+mkdir -p "$HOME/.config/flashdata"
+printf 'preserve user profiles and run history\n' > "$HOME/.config/flashdata/package-test-marker"
+chmod 0600 "$HOME/.config/flashdata/package-test-marker"
+dnf reinstall -y flashdata
+test -s "$HOME/.config/flashdata/package-test-marker"
+dnf remove -y flashdata
+test ! -e /usr/bin/flashdata
+rpmkeys --checksig "$fixtures/flashdata-1.0.0-0.upgradetest.$arch.rpm"
+rpm -Uvh "$fixtures/flashdata-1.0.0-0.upgradetest.$arch.rpm"
+test "$(rpm -q --qf '%{RELEASE}' flashdata)" = 0.upgradetest
+dnf -y --refresh upgrade flashdata
+test "$(rpm -q --qf '%{VERSION}-%{RELEASE}.%{ARCH}' flashdata)" = "1.0.0-1.$arch"
+rpm -V flashdata
+test -s "$HOME/.config/flashdata/package-test-marker"
+python3 - "$arch" <<'PY'
+import hashlib,json,sys
+m=json.load(open('/work/manifest.json'))['releases'][-1]
+assert hashlib.sha256(open('/usr/bin/flashdata','rb').read()).hexdigest()==m['executables'][sys.argv[1]]
+PY
+dnf remove -y flashdata
+test ! -e /usr/bin/flashdata
+test -s "$HOME/.config/flashdata/package-test-marker"
+curl -fsSL "$base_url/stable/$arch/Packages/flashdata-1.0.0-1.$arch.rpm" -o /tmp/flashdata.rpm
+rpmkeys --checksig --verbose /tmp/flashdata.rpm
+
+if [ "$mode" = candidate ]; then
+  # Wrong metadata key, using a fresh repository ID/cache to avoid earlier imports.
+  export GNUPGHOME="$(mktemp -d)"
+  chmod 0700 "$GNUPGHOME"
+  gpg --batch --passphrase '' --quick-generate-key 'RPM negative test <invalid@example.invalid>' rsa2048 sign 0
+  gpg --armor --export > /tmp/wrong-key.asc
+  sed -e 's/\[flashdata\]/[flashdata-wrong]/' -e 's|file:///etc/pki/rpm-gpg/RPM-GPG-KEY-flashdata|file:///tmp/wrong-key.asc|' /etc/yum.repos.d/flashdata.repo > /etc/yum.repos.d/flashdata-wrong.repo
+  if dnf -y --refresh --disablerepo='*' --enablerepo=flashdata-wrong --setopt=cachedir=/tmp/wrong-cache makecache > /tmp/wrong-key.log 2>&1; then
+    echo 'DNF accepted an unrelated metadata key' >&2; exit 1
+  fi
+  grep -Ei 'GPG|signature|key' /tmp/wrong-key.log
+  # Change signed repomd bytes while retaining its original signature.
+  cp -a /work/dist /tmp/tampered
+  printf '\n<!-- altered -->\n' >> "/tmp/tampered/stable/$arch/repodata/repomd.xml"
+  python3 -m http.server 8766 --bind 127.0.0.1 --directory /tmp/tampered >/tmp/tampered-server.log 2>&1 &
+  server_pid=$!
+  trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+  sed -e 's/\[flashdata\]/[flashdata-tampered]/' -e "s|$base_url|http://127.0.0.1:8766|" /etc/yum.repos.d/flashdata.repo > /etc/yum.repos.d/flashdata-tampered.repo
+  sleep 1
+  if dnf -y --refresh --disablerepo='*' --enablerepo=flashdata-tampered --setopt=cachedir=/tmp/bad-metadata-cache makecache > /tmp/bad-metadata.log 2>&1; then
+    echo 'DNF accepted altered signed metadata' >&2; exit 1
+  fi
+  grep -Ei 'GPG|signature|verification' /tmp/bad-metadata.log
+  # Restore signed metadata, but change the RPM itself; index/package checks must reject it.
+  cp "/work/dist/stable/$arch/repodata/repomd.xml" "/tmp/tampered/stable/$arch/repodata/repomd.xml"
+  printf 'tamper' >> "/tmp/tampered/stable/$arch/Packages/flashdata-1.0.0-1.$arch.rpm"
+  if dnf -y --refresh --disablerepo='*' --enablerepo=flashdata-tampered --setopt=cachedir=/tmp/bad-package-cache install flashdata > /tmp/bad-package.log 2>&1; then
+    echo 'DNF accepted modified package bytes' >&2; exit 1
+  fi
+  grep -Ei 'checksum|size|digest|verification' /tmp/bad-package.log
+  # Metadata signatures do not substitute for the individual RPM signature.
+  cp /tmp/flashdata.rpm /tmp/unsigned.rpm
+  rpm --delsign /tmp/unsigned.rpm
+  if dnf -y --disablerepo='*' --setopt=localpkg_gpgcheck=1 install /tmp/unsigned.rpm > /tmp/unsigned.log 2>&1; then
+    echo 'DNF accepted an unsigned package under signature enforcement' >&2; exit 1
+  fi
+  grep -Ei 'GPG|signature|not signed|unsigned' /tmp/unsigned.log
+fi
+echo "PASS: $mode $(. /etc/os-release; echo "$ID $VERSION_ID") $arch install/reinstall/upgrade/remove and preserved user state"

@@ -13,7 +13,10 @@
         "x86_64": "6d8521b5399e49150476075c78dd4714760fac5e9396110118fc2212d0a25501",
         "aarch64": "67ebc7bced958dea880c565450f7da821da70c0b339548e8b06b76047a0de882"
       },
-      "packages": {}
+      "packages": {
+        "x86_64": "08273dd80348da9d32401bec66a89c4e874b3d32884faae0dee54365820f0e1b",
+        "aarch64": "13a41954c4e305527d36c5bfa6705f923900451ecfbb64ac4190918bdd6378a8"
+      }
     }
   ]
 }

@@ -1,0 +1,159 @@
+name: RPM repository
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '37 3 * * 1'
+permissions:
+  contents: read
+concurrency:
+  group: rpm-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm cpio gnupg createrepo-c
+      - run: python3 -m unittest discover -s tests -p 'test_*.py'
+      - run: python3 scripts/verify_packages.py
+  fixtures:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: x86_64
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm cpio gnupg
+      - env:
+          PACKAGE_ARCH: ${{ matrix.arch }}
+        run: python3 scripts/build_packages.py --fixtures-only --arch "$PACKAGE_ARCH"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: unsigned-fixture-${{ matrix.arch }}
+          path: unsigned/fixtures
+          retention-days: 7
+  sign:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [validate, fixtures]
+    environment: rpm-signing
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm cpio gnupg createrepo-c
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: unsigned-fixture-*
+          path: fixtures
+          merge-multiple: true
+      - run: python3 scripts/build_repository.py
+      - name: Sign metadata and test-only fixtures in an isolated keyring
+        env:
+          RPM_SIGNING_PRIVATE_KEY: ${{ secrets.RPM_SIGNING_PRIVATE_KEY }}
+          RPM_SIGNING_PASSPHRASE: ${{ secrets.RPM_SIGNING_PASSPHRASE }}
+        run: python3 scripts/sign_packages.py --packages fixtures --metadata dist
+      - run: |
+          python3 scripts/verify_packages.py --fixtures fixtures
+          gpg --batch --no-default-keyring --keyring /tmp/flashdata-public.gpg --import keys/flashdata.asc
+          for arch in x86_64 aarch64; do
+            gpgv --keyring /tmp/flashdata-public.gpg "dist/stable/$arch/repodata/repomd.xml.asc" "dist/stable/$arch/repodata/repomd.xml"
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: upgrade-fixtures
+          path: fixtures
+          retention-days: 7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: signed-repository
+          path: dist
+          include-hidden-files: true
+          retention-days: 7
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: dist
+  install-candidate:
+    needs: sign
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        image: ['fedora:43', 'fedora:44', 'registry.access.redhat.com/ubi8/ubi:latest', 'registry.access.redhat.com/ubi9/ubi:latest', 'registry.access.redhat.com/ubi10/ubi:latest']
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: signed-repository
+          path: dist
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: upgrade-fixtures
+          path: fixtures
+      - name: Test installation, upgrade, user state and tamper rejection
+        env:
+          TEST_IMAGE: ${{ matrix.image }}
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 --directory dist >/tmp/rpm-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          docker run --rm --network host -v "$GITHUB_WORKSPACE:/work:ro" "$TEST_IMAGE" bash /work/tests/install_repo.sh http://127.0.0.1:8765 /work/fixtures
+  deploy:
+    needs: [sign, install-candidate]
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy the verified signed repository
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+  install-public:
+    needs: deploy
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        image: ['fedora:43', 'fedora:44', 'registry.access.redhat.com/ubi8/ubi:latest', 'registry.access.redhat.com/ubi9/ubi:latest', 'registry.access.redhat.com/ubi10/ubi:latest']
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: upgrade-fixtures
+          path: fixtures
+      - name: Test documented installer against the published HTTPS repository
+        env:
+          TEST_IMAGE: ${{ matrix.image }}
+        run: docker run --rm -v "$GITHUB_WORKSPACE:/work:ro" "$TEST_IMAGE" bash /work/tests/install_repo.sh https://flashdatadev.github.io/rpm /work/fixtures live
