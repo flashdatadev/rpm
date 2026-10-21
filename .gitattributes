@@ -1,0 +1,3 @@
+* text=auto eol=lf
+*.rpm binary
+*.asc text eol=lf

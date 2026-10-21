@@ -1,0 +1,33 @@
+name: Prepare immutable RPM packages
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  packages:
+    if: github.ref == 'refs/heads/main'
+    environment: rpm-signing
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install native RPM tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm cpio gnupg
+      - name: Build both architectures from pinned upstream archives
+        run: python3 scripts/build_packages.py
+      - name: Sign packages and test-only upgrade fixtures
+        env:
+          RPM_SIGNING_PRIVATE_KEY: ${{ secrets.RPM_SIGNING_PRIVATE_KEY }}
+          RPM_SIGNING_PASSPHRASE: ${{ secrets.RPM_SIGNING_PASSPHRASE }}
+        run: python3 scripts/sign_packages.py --packages unsigned/packages unsigned/fixtures
+      - name: Verify native signatures, payloads and package metadata
+        run: python3 scripts/verify_packages.py --packages unsigned/packages --fixtures unsigned/fixtures --bootstrap
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: signed-rpm-bootstrap
+          path: unsigned
+          retention-days: 14
