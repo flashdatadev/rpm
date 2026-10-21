@@ -128,6 +128,7 @@ mkdir -p %{{buildroot}}
 cp -a usr %{{buildroot}}/
 
 %files
+%defattr(-,root,root,-)
 %attr(0755,root,root) /usr/bin/flashdata
 %doc /usr/share/doc/flashdata
 %license /usr/share/licenses/flashdata
@@ -153,19 +154,25 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=pathlib.Path, default=ROOT / "unsigned/packages")
     parser.add_argument("--fixtures", type=pathlib.Path, default=ROOT / "unsigned/fixtures")
+    parser.add_argument("--arch", choices=tuple(ARCHES), required=True)
+    parser.add_argument("--fixtures-only", action="store_true")
     args = parser.parse_args()
     if not shutil.which("rpmbuild"):
         raise RuntimeError("Native Linux rpmbuild is required; use the bootstrap workflow")
     report = {"rpmToolchain": run(["rpm", "--version"]).decode().strip(), "packages": []}
-    for release in manifest()["releases"]:
-        for arch in ARCHES:
+    releases = manifest()["releases"]
+    selected = releases[-1:] if args.fixtures_only else [r for r in releases if not r["packages"]]
+    if not selected:
+        raise ValueError("All versions are already sealed; never re-sign existing RPM versions")
+    for release in selected:
+        for arch in (args.arch,):
             files = upstream(release, arch)
-            name = build(release, arch, files, args.output)
+            name = None if args.fixtures_only else build(release, arch, files, args.output)
             fixture = build({**release, "release": "0.upgradetest"}, arch, files, args.fixtures)
-            report["packages"].append({"file": name, "architecture": arch, "unsignedSHA256": sha((args.output / name).read_bytes()), "fixture": fixture,
+            report["packages"].append({"file": name, "architecture": arch, "unsignedSHA256": sha((args.output / name).read_bytes()) if name else None, "fixture": fixture,
                                        "executableSHA256": release["executables"][arch], "sourceCommit": release["source_commit"]})
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    (args.output.parent / "build-report.json").write_text(json.dumps(report, indent=2) + "\n")
+    (args.output.parent / f"build-report-{args.arch}.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report))
 
 
