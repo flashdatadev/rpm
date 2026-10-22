@@ -41,11 +41,13 @@ def main():
         database = pathlib.Path(directory)
         run(["rpm", "--dbpath", database, "--initdb"])
         run(["rpm", "--dbpath", database, "--import", ROOT / "keys/flashdata.asc"])
-        for release in manifest()["releases"]:
+        releases = manifest()["releases"]
+        selected = [r for r in releases if not r["packages"]] if args.bootstrap else releases
+        for release in selected:
             for arch in ARCHES:
                 name = f"flashdata-{release['version']}-{release['release']}.{arch}.rpm"
                 records.append(verify(args.packages / name, release, arch, database, not args.bootstrap))
-                if args.fixtures:
+                if args.fixtures and release == releases[-1]:
                     old = {**release, "release": "0.upgradetest"}
                     old_name = f"flashdata-{old['version']}-{old['release']}.{arch}.rpm"
                     verify(args.fixtures / old_name, old, arch, database, False)
