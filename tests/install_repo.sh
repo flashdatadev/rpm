@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # Run in disposable Fedora/Red Hat UBI containers only.
 set -euo pipefail
-trap 'echo "RPM test failed at line $LINENO" >&2' ERR
+trap 'echo "RPM test failed at line $LINENO" >&2; for log in /tmp/wrong-key.log /tmp/bad-metadata.log /tmp/bad-package.log /tmp/unsigned.log; do if [ -f "$log" ]; then tail -n 25 "$log" >&2; fi; done' ERR
 base_url="${1:?repository URL required}"
 fixtures="${2:?fixture directory required}"
 mode="${3:-candidate}"
 arch="$(rpm --eval '%{_arch}')"
 fingerprint=23AB58683E85FE7236D369713D19EA52D181CC36
+# Fedora's minimal container defaults omit %doc files; test a full installation.
+for config in /etc/dnf/dnf.conf /etc/yum.conf; do
+  if [ -f "$config" ]; then sed -i '/^[[:space:]]*tsflags[[:space:]]*=/d' "$config"; fi
+done
 dnf install -y ca-certificates gnupg2 python3
 if ! command -v curl >/dev/null 2>&1; then dnf install -y curl; fi
 if [ "$mode" = live ]; then
@@ -94,7 +98,8 @@ if [ "$mode" = candidate ]; then
   # Change signed repomd bytes while retaining its original signature.
   cp -a /work/dist /tmp/tampered
   printf '\n<!-- altered -->\n' >> "/tmp/tampered/stable/$arch/repodata/repomd.xml"
-  python3 -m http.server 8766 --bind 127.0.0.1 --directory /tmp/tampered >/tmp/tampered-server.log 2>&1 &
+  # RHEL 8's Python 3.6 predates http.server --directory.
+  python3 -c 'import os,http.server; os.chdir("/tmp/tampered"); http.server.HTTPServer(("127.0.0.1",8766),http.server.SimpleHTTPRequestHandler).serve_forever()' >/tmp/tampered-server.log 2>&1 &
   server_pid=$!
   trap 'kill "$server_pid" 2>/dev/null || true' EXIT
   sed -e 's/\[flashdata\]/[flashdata-tampered]/' -e "s|$base_url|http://127.0.0.1:8766|" /etc/yum.repos.d/flashdata.repo > /etc/yum.repos.d/flashdata-tampered.repo
@@ -111,8 +116,8 @@ if [ "$mode" = candidate ]; then
   fi
   grep -Ei 'checksum|size|digest|verification' /tmp/bad-package.log
   # Metadata signatures do not substitute for the individual RPM signature.
-  cp /tmp/flashdata.rpm /tmp/unsigned.rpm
-  rpm --delsign /tmp/unsigned.rpm
+  # Prepared on the build runner: installed clients do not need rpm-sign.
+  cp "$fixtures/unsigned-$arch.rpm" /tmp/unsigned.rpm
   if dnf -y --disablerepo='*' --setopt=localpkg_gpgcheck=1 install /tmp/unsigned.rpm > /tmp/unsigned.log 2>&1; then
     echo 'DNF accepted an unsigned package under signature enforcement' >&2; exit 1
   fi
