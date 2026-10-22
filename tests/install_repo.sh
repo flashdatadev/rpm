@@ -110,11 +110,19 @@ if [ "$mode" = candidate ]; then
   grep -Ei 'GPG|signature|verification' /tmp/bad-metadata.log
   # Restore signed metadata, but change the RPM itself; index/package checks must reject it.
   cp "/work/dist/stable/$arch/repodata/repomd.xml" "/tmp/tampered/stable/$arch/repodata/repomd.xml"
-  printf 'tamper' >> "/tmp/tampered/stable/$arch/Packages/flashdata-1.0.0-1.$arch.rpm"
+  # Keep length unchanged so rejection must exercise content verification.
+  python3 - "$arch" <<'PY'
+import pathlib,sys
+p=pathlib.Path('/tmp/tampered/stable')/sys.argv[1]/'Packages'/('flashdata-1.0.0-1.'+sys.argv[1]+'.rpm')
+data=bytearray(p.read_bytes())
+data[-1]^=1
+p.write_bytes(data)
+PY
   if dnf -y --refresh --disablerepo='*' --enablerepo=flashdata-tampered --setopt=cachedir=/tmp/bad-package-cache install flashdata > /tmp/bad-package.log 2>&1; then
     echo 'DNF accepted modified package bytes' >&2; exit 1
   fi
-  grep -Ei 'checksum|size|digest|verification' /tmp/bad-package.log
+  cat /tmp/bad-package.log
+  grep -Ei 'checksum|digest|mismatch|does not match|doesn.t match' /tmp/bad-package.log
   # Metadata signatures do not substitute for the individual RPM signature.
   # Prepared on the build runner: installed clients do not need rpm-sign.
   cp "$fixtures/unsigned-$arch.rpm" /tmp/unsigned.rpm
