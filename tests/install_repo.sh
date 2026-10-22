@@ -12,6 +12,8 @@ for config in /etc/dnf/dnf.conf /etc/yum.conf; do
   if [ -f "$config" ]; then sed -i '/^[[:space:]]*tsflags[[:space:]]*=/d' "$config"; fi
 done
 dnf install -y ca-certificates gnupg2 python3
+version="$(python3 -c "import json;print(json.load(open('/work/manifest.json'))['releases'][-1]['version'])")"
+package_version="$(python3 -c "import json;m=json.load(open('/work/manifest.json'))['releases'][-1];print(m['version']+'-'+m['release'])")"
 if ! command -v curl >/dev/null 2>&1; then dnf install -y curl; fi
 if [ "$mode" = live ]; then
   dnf install -y sudo
@@ -44,35 +46,52 @@ skip_if_unavailable=0
 EOF
 dnf -y --refresh --disablerepo='*' --enablerepo=flashdata makecache
 dnf install -y flashdata
-test "$(rpm -q --qf '%{VERSION}-%{RELEASE}.%{ARCH}' flashdata)" = "1.0.0-1.$arch"
+test "$(rpm -q --qf '%{VERSION}-%{RELEASE}.%{ARCH}' flashdata)" = "$package_version.$arch"
 flashdata --version --json | tee /tmp/flashdata-version.json
 python3 - <<'PY'
 import json
 v=json.load(open('/tmp/flashdata-version.json'))
-assert v['ok'] and v['data']['version']=='1.0.0'
-assert v['data']['commit']=='e9f7a2f7b0cd62e74fc2c79b8c0f64273adbe2dc'
+m=json.load(open('/work/manifest.json'))['releases'][-1]
+assert v['ok'] and v['data']=={'version':m['version'],'commit':m['source_commit']}
 PY
 flashdata --help
+flashdata discover plans --help
+flashdata discover status --help
 flashdata commands --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert {"auth","bulk","query","runs"} <= {c["name"] for c in d["data"]["commands"]}'
 test -s /usr/share/doc/flashdata/README.zh-CN.md
 test -s /usr/share/doc/flashdata/examples/query.json
 test -s /usr/share/man/man1/flashdata.1.gz
 test -s /usr/share/licenses/flashdata/LICENSE
 rpm -V flashdata
-mkdir -p "$HOME/.config/flashdata"
-printf 'preserve user profiles and run history\n' > "$HOME/.config/flashdata/package-test-marker"
-chmod 0600 "$HOME/.config/flashdata/package-test-marker"
+mkdir -p "$HOME/.local/state/flashdata"
+printf 'preserve user profiles and run history\n' > "$HOME/.local/state/flashdata/package-test-marker"
+chmod 0600 "$HOME/.local/state/flashdata/package-test-marker"
+python3 /work/tests/upgrade_state.py prepare "$HOME/.local/state/flashdata"
 dnf reinstall -y flashdata
-test -s "$HOME/.config/flashdata/package-test-marker"
+test -s "$HOME/.local/state/flashdata/package-test-marker"
 dnf remove -y flashdata
 test ! -e /usr/bin/flashdata
-rpmkeys --checksig "$fixtures/flashdata-1.0.0-0.upgradetest.$arch.rpm"
-rpm -Uvh "$fixtures/flashdata-1.0.0-0.upgradetest.$arch.rpm"
+# Upgrade the actual signed previous release, preserving user state.
+previous="$(python3 -c "import json;m=json.load(open('/work/manifest.json'))['releases'][-2];print(m['version']+'-'+m['release'])")"
+rpmkeys --checksig "/work/packages/flashdata-$previous.$arch.rpm"
+rpm -Uvh "/work/packages/flashdata-$previous.$arch.rpm"
+test "$(rpm -q --qf '%{VERSION}-%{RELEASE}' flashdata)" = "$previous"
+flashdata --version
+python3 /work/tests/upgrade_state.py check "$HOME/.local/state/flashdata"
+dnf -y --refresh upgrade flashdata
+test "$(rpm -q --qf '%{VERSION}-%{RELEASE}' flashdata)" = "$package_version"
+rpm -V flashdata
+python3 /work/tests/upgrade_state.py check "$HOME/.local/state/flashdata"
+test -s "$HOME/.local/state/flashdata/package-test-marker"
+dnf remove -y flashdata
+rpmkeys --checksig "$fixtures/flashdata-$version-0.upgradetest.$arch.rpm"
+rpm -Uvh "$fixtures/flashdata-$version-0.upgradetest.$arch.rpm"
 test "$(rpm -q --qf '%{RELEASE}' flashdata)" = 0.upgradetest
 dnf -y --refresh upgrade flashdata
-test "$(rpm -q --qf '%{VERSION}-%{RELEASE}.%{ARCH}' flashdata)" = "1.0.0-1.$arch"
+test "$(rpm -q --qf '%{VERSION}-%{RELEASE}.%{ARCH}' flashdata)" = "$package_version.$arch"
 rpm -V flashdata
-test -s "$HOME/.config/flashdata/package-test-marker"
+python3 /work/tests/upgrade_state.py check "$HOME/.local/state/flashdata"
+test -s "$HOME/.local/state/flashdata/package-test-marker"
 python3 - "$arch" <<'PY'
 import hashlib,json,sys
 m=json.load(open('/work/manifest.json'))['releases'][-1]
@@ -80,8 +99,8 @@ assert hashlib.sha256(open('/usr/bin/flashdata','rb').read()).hexdigest()==m['ex
 PY
 dnf remove -y flashdata
 test ! -e /usr/bin/flashdata
-test -s "$HOME/.config/flashdata/package-test-marker"
-curl -fsSL "$base_url/stable/$arch/Packages/flashdata-1.0.0-1.$arch.rpm" -o /tmp/flashdata.rpm
+test -s "$HOME/.local/state/flashdata/package-test-marker"
+curl -fsSL "$base_url/stable/$arch/Packages/flashdata-$package_version.$arch.rpm" -o /tmp/flashdata.rpm
 rpmkeys --checksig --verbose /tmp/flashdata.rpm
 
 if [ "$mode" = candidate ]; then
@@ -113,7 +132,9 @@ if [ "$mode" = candidate ]; then
   # Keep length unchanged so rejection must exercise content verification.
   python3 - "$arch" <<'PY'
 import pathlib,sys
-p=pathlib.Path('/tmp/tampered/stable')/sys.argv[1]/'Packages'/('flashdata-1.0.0-1.'+sys.argv[1]+'.rpm')
+import json
+m=json.load(open('/work/manifest.json'))['releases'][-1]
+p=pathlib.Path('/tmp/tampered/stable')/sys.argv[1]/'Packages'/('flashdata-'+m['version']+'-'+m['release']+'.'+sys.argv[1]+'.rpm')
 data=bytearray(p.read_bytes())
 data[-1]^=1
 p.write_bytes(data)

@@ -77,9 +77,10 @@ jobs:
       - run: |
           python3 scripts/verify_packages.py --fixtures fixtures
           gpg --batch --no-default-keyring --keyring /tmp/flashdata-public.gpg --import keys/flashdata.asc
+          package_version="$(python3 -c "import json;m=json.load(open('manifest.json'))['releases'][-1];print(m['version']+'-'+m['release'])")"
           for arch in x86_64 aarch64; do
             gpgv --keyring /tmp/flashdata-public.gpg "dist/stable/$arch/repodata/repomd.xml.asc" "dist/stable/$arch/repodata/repomd.xml"
-            cp "packages/flashdata-1.0.0-1.$arch.rpm" "fixtures/unsigned-$arch.rpm"
+            cp "packages/flashdata-$package_version.$arch.rpm" "fixtures/unsigned-$arch.rpm"
             rpmsign --delsign "fixtures/unsigned-$arch.rpm"
           done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7

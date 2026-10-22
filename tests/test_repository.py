@@ -57,17 +57,21 @@ class RepositoryTests(unittest.TestCase):
                     folder = output / 'stable' / arch / 'repodata'
                     entries = {p.name: p.read_bytes() for p in folder.iterdir() if p.name != 'repomd.xml'}
                     indexes.append(entries)
-                    primary = next(p for p in folder.iterdir() if p.name.endswith('-primary.xml.gz'))
+                    metadata = ET.parse(folder / 'repomd.xml')
+                    repo_ns = {'r': 'http://linux.duke.edu/metadata/repo'}
+                    current = next(d for d in metadata.findall('r:data', repo_ns) if d.attrib['type'] == 'primary')
+                    primary = output / 'stable' / arch / current.find('r:location', repo_ns).attrib['href']
                     packages = ET.fromstring(gzip.decompress(primary.read_bytes()))
                     ns = {'p': 'http://linux.duke.edu/metadata/common'}
-                    self.assertEqual(len(packages), 1)
-                    package = packages.find('p:package', ns)
-                    self.assertEqual(package.find('p:name', ns).text, 'flashdata')
-                    self.assertEqual(package.find('p:version', ns).attrib['rel'], '1')
+                    ledger = json.loads((ROOT / 'manifest.json').read_text())['releases']
+                    self.assertEqual(len(packages), len(ledger))
+                    self.assertEqual({(p.find('p:version', ns).attrib['ver'], p.find('p:version', ns).attrib['rel']) for p in packages}, {(r['version'], r['release']) for r in ledger})
                     self.assertNotIn('upgradetest', gzip.decompress(primary.read_bytes()).decode())
-                    location = package.find('p:location', ns).attrib['href']
-                    data = (output / 'stable' / arch / location).read_bytes()
-                    self.assertEqual(hashlib.sha256(data).hexdigest(), package.find('p:checksum', ns).text)
+                    for package in packages:
+                        self.assertEqual(package.find('p:name', ns).text, 'flashdata')
+                        location = package.find('p:location', ns).attrib['href']
+                        data = (output / 'stable' / arch / location).read_bytes()
+                        self.assertEqual(hashlib.sha256(data).hexdigest(), package.find('p:checksum', ns).text)
                 self.assertEqual(indexes[0], indexes[1], 'hash-named indexes must remain byte-identical')
 
 
