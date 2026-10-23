@@ -71,6 +71,24 @@
         "x86_64": "d665a2f2ea30063ea2b73dd0b103b596c0acd1246959ae89d2bdfcd72d7533a1",
         "aarch64": "7d8c6825beba983dc4436e5a73f7673cbcd00972e24d65fc065bebfc2d6853bb"
       }
+    },
+    {
+      "version": "1.1.2",
+      "release": "1",
+      "source_commit": "600653433af10989bdb7000b6eeeeebc2968f45b",
+      "source_date_epoch": 1792771666,
+      "archives": {
+        "x86_64": "b0bd985a0e73362edf6296402508d4f51a73897b7d393e081bb27191aafb8136",
+        "aarch64": "9213b6de8c8297ebcc273b970db1b2a3e6a35ac0d4dbbc7b47664539b13e08ec"
+      },
+      "executables": {
+        "x86_64": "30e64cf0cf954666cd955788c4d3678d295dd28d56b66416107a136372dc56ac",
+        "aarch64": "e419e1d41351c34bb64f0d4af051048fb44731de9d571705037c628ec62a43cb"
+      },
+      "packages": {
+        "x86_64": "6c95d9f212efb35a07c95dc85ca349006312e15fbc1103a94ca91703ec3fceec",
+        "aarch64": "3682893e5f2f5e80da30a05d91270529f8cf8ec82dda2f77aac20ecbb6dc6391"
+      }
     }
   ]
 }
