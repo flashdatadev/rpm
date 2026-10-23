@@ -53,6 +53,24 @@
         "x86_64": "fac6d68adb48512c3cd19e22e1cbe8f36776decf7fb80893074147a3c7aa0d0f",
         "aarch64": "07776306f426adf80f20f056b3284b8cc6ea0594fb291b34f3ed9bfa4a2404ce"
       }
+    },
+    {
+      "version": "1.1.1",
+      "release": "1",
+      "source_commit": "96cfce0e313d27bccbf6371dbd302d3f867d143b",
+      "source_date_epoch": 1792765046,
+      "archives": {
+        "x86_64": "1e2568f0e92183d9e936a8b9e982a3367aca760102c71a89fd2ef26bf9a1150e",
+        "aarch64": "be3df696b675f8fd6f8e9782a6b45e629c13a93614febec4374bc5525744be49"
+      },
+      "executables": {
+        "x86_64": "9b8fbfc9e22b867b16d3d0407967945bfdbd4329227e07f4f34e0178ceac29b0",
+        "aarch64": "9102db219d8b2e3b6edee5d3be4080208e9203eb18c61f2c1e519bf6e5f5f04e"
+      },
+      "packages": {
+        "x86_64": "d665a2f2ea30063ea2b73dd0b103b596c0acd1246959ae89d2bdfcd72d7533a1",
+        "aarch64": "7d8c6825beba983dc4436e5a73f7673cbcd00972e24d65fc065bebfc2d6853bb"
+      }
     }
   ]
 }
