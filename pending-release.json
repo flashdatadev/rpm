@@ -1,0 +1,15 @@
+{
+  "version": "1.1.2",
+  "release": "1",
+  "source_commit": "600653433af10989bdb7000b6eeeeebc2968f45b",
+  "source_date_epoch": 1792771666,
+  "archives": {
+    "x86_64": "b0bd985a0e73362edf6296402508d4f51a73897b7d393e081bb27191aafb8136",
+    "aarch64": "9213b6de8c8297ebcc273b970db1b2a3e6a35ac0d4dbbc7b47664539b13e08ec"
+  },
+  "executables": {
+    "x86_64": "30e64cf0cf954666cd955788c4d3678d295dd28d56b66416107a136372dc56ac",
+    "aarch64": "e419e1d41351c34bb64f0d4af051048fb44731de9d571705037c628ec62a43cb"
+  },
+  "packages": {}
+}
