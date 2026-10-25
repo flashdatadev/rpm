@@ -57,7 +57,13 @@ PY
 flashdata --help
 flashdata discover plans --help
 flashdata discover status --help
-flashdata commands --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert {"auth","bulk","query","runs"} <= {c["name"] for c in d["data"]["commands"]}'
+flashdata commands --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert {"auth","bulk","query","runs","setup","skills"} <= {c["name"] for c in d["data"]["commands"]}'
+# Exercise the bundled skills without credentials or paid queries.
+skill_project="$(mktemp -d)"
+flashdata setup --skip-auth --agent codex --directory "$skill_project" --non-interactive
+flashdata skills verify --agent codex --directory "$skill_project" --non-interactive
+test -s "$skill_project/.agents/skills/flashdata/SKILL.md"
+test -s "$skill_project/.agents/skills/youtube-transcript/SKILL.md"
 test -s /usr/share/doc/flashdata/README.zh-CN.md
 test -s /usr/share/doc/flashdata/examples/query.json
 test -s /usr/share/man/man1/flashdata.1.gz

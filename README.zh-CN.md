@@ -49,7 +49,15 @@ EOF
 
 DNF 可能再次导入密钥以验证元数据：仓库元数据密钥环与 RPM 软件包密钥库相互独立，两者使用的都是已核对完整指纹的本地证书。可通过[本仓库的公开指纹](keys/fingerprint.txt)独立比对。
 
-从 [FlashData 账户](https://flashdata.dev) 获取 API 密钥，然后参阅 CLI 的[初始化指南](https://github.com/flashdatadev/flashdata-cli/blob/main/docs/installation.zh-CN.md)。安装及上述离线验证无需 API 密钥。如果之前手动安装过 CLI 或通过 Homebrew 安装，请检查 `command -v flashdata`；RPM 安装位置为 `/usr/bin/flashdata`，可能被 `PATH` 中更靠前的同名文件遮蔽。避免让多个包管理器管理同一个可执行文件。
+安装后，设置 agent：
+
+```bash
+flashdata setup
+```
+
+设置会选择 Codex、Claude Code 或 Cursor，安装随附技能并验证访问，不执行付费查询。技能默认使用纯文本，MCP 可选。使用已有密钥时，设置前运行 `flashdata auth login`。uv 安装方式见 [CLI 设置指南](https://github.com/flashdatadev/flashdata-cli/blob/main/README.zh-CN.md)。
+
+安装及上述离线验证无需 API 密钥。如果之前手动安装过 CLI 或通过 Homebrew 安装，请检查 `command -v flashdata`；RPM 安装位置为 `/usr/bin/flashdata`，可能被 `PATH` 中更靠前的同名文件遮蔽。避免让多个包管理器管理同一个可执行文件。
 
 ## 升级与卸载
 
@@ -68,12 +76,12 @@ sudo dnf remove flashdata
 ## 软件包与信任机制
 
 - 稳定版入口：[flashdatadev.github.io/rpm](https://flashdatadev.github.io/rpm/)；[仓库配置](https://flashdatadev.github.io/rpm/flashdata.repo)、[公开证书](https://flashdatadev.github.io/rpm/flashdata.asc)、[软件包清单](https://flashdatadev.github.io/rpm/packages.json)。
-- CLI 版本 **1.1.2**，RPM 版本/发行号 **1.1.2-1**，软件包名称 **flashdata**。两个架构的可执行文件均与[官方 v1.1.2 发布文件](https://github.com/flashdatadev/flashdata-cli/releases/tag/v1.1.2)逐字节一致，另附文档、示例、手册页和第三方许可证。
+- CLI 版本 **1.2.0**，RPM 版本/发行号 **1.2.0-1**，软件包名称 **flashdata**。两个架构的可执行文件均与[官方 v1.2.0 发布文件](https://github.com/flashdatadev/flashdata-cli/releases/tag/v1.2.0)逐字节一致，另附文档、示例、手册页和第三方许可证。
 - 独立的 RSA-4096 RPM 签名证书指纹：`23AB58683E85FE7236D369713D19EA52D181CC36`，身份为 `FlashData RPM Signing <support@flashdata.dev>`。RPM 软件包与 `repomd.xml` 都使用 SHA-256 签名，与 APT 证书分开管理。
 - 保持 `gpgcheck=1`、`repo_gpgcheck=1` 及 HTTPS 校验。`includepkgs=flashdata` 限制此仓库提供的软件包。RPM 软件包证书导入系统全局信任库，并非仅对单一仓库生效；DNF 元数据密钥环则按仓库隔离。
 - [manifest.json](manifest.json) 固定软件包内容及 SHA-256。已发布版本不会原地重建或重新签名。候选仓库通过安装、升级和拒绝篡改测试后才部署元数据，并保留旧软件包及带哈希的索引。
 - `metadata_expire=6h` 仅控制 DNF 缓存更新，不是密码学有效期保证。RPM 仓库元数据没有 APT 式 `Valid-Until`。签名证书有效期两年；距离到期不足 30 天时签名流程会拒绝继续，维护者必须提前轮换。每周任务刷新元数据并重新执行完整检查。
 
-参阅 [CI 结果](https://github.com/flashdatadev/rpm/actions/workflows/publish.yml)、[维护与恢复](docs/maintaining.md)及[安全问题报告](SECURITY.md)。每个候选及公开仓库测试容器都从真实签名的 **1.1.1-1** 升级到 **1.1.2-1**，验证可执行文件哈希并保留用户状态。另用签名的 **1.1.2-0.upgradetest** 专用包验证打包修订升级，该测试包不进入公开索引。原有 1.0.0 签名软件包保持不变并继续提供。
+参阅 [CI 结果](https://github.com/flashdatadev/rpm/actions/workflows/publish.yml)、[维护与恢复](docs/maintaining.md)及[安全问题报告](SECURITY.md)。每个候选及公开仓库测试容器都从真实签名的 **1.1.2-1** 升级到 **1.2.0-1**，验证可执行文件哈希并保留用户状态。另用签名的 **1.2.0-0.upgradetest** 专用包验证打包修订升级，该测试包不进入公开索引。原有 1.0.0 签名软件包保持不变并继续提供。
 
 支持：[support@flashdata.dev](mailto:support@flashdata.dev) · [flashdata.dev](https://flashdata.dev)
