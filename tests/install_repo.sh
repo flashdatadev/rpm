@@ -64,6 +64,17 @@ flashdata setup --skip-auth --agent codex --directory "$skill_project" --non-int
 flashdata skills verify --agent codex --directory "$skill_project" --non-interactive
 test -s "$skill_project/.agents/skills/flashdata/SKILL.md"
 test -s "$skill_project/.agents/skills/youtube-transcript/SKILL.md"
+test -s "$skill_project/.agents/skills/flashdata/references/bulk.md"
+test -s "$skill_project/.agents/skills/youtube-metadata/references/bulk.md"
+test -s "$skill_project/.agents/skills/youtube-transcript/references/bulk.md"
+test -s "$skill_project/.agents/skills/youtube-captions/references/bulk.md"
+test -s "$skill_project/.agents/skills/youtube-license-check/references/bulk.md"
+test -s "$skill_project/.agents/skills/youtube-download/references/bulk.md"
+test -s "$skill_project/.agents/skills/youtube-metadata/assets/bulk-options.json"
+test -s "$skill_project/.agents/skills/youtube-transcript/assets/bulk-options.json"
+test -s "$skill_project/.agents/skills/youtube-captions/assets/bulk-options.json"
+test -s "$skill_project/.agents/skills/youtube-download/assets/bulk-audio-options.json"
+test -s "$skill_project/.agents/skills/youtube-download/assets/bulk-video-options.json"
 test -s /usr/share/doc/flashdata/README.zh-CN.md
 test -s /usr/share/doc/flashdata/examples/query.json
 test -s /usr/share/man/man1/flashdata.1.gz

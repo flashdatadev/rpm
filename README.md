@@ -55,7 +55,7 @@ After installation, set up your agent:
 flashdata setup
 ```
 
-Setup selects Codex, Claude Code or Cursor, installs bundled skills and verifies access without a paid query. Skills use plain text by default; MCP is optional. To use an existing key, run `flashdata auth login` before setup. For the uv installation option, see the [CLI setup guide](https://github.com/flashdatadev/flashdata-cli#readme).
+Setup selects Codex, Claude Code or Cursor, installs bundled skills and verifies access without a paid query. Content queries in skills use plain text by default; bulk exports stay JSONL. CLI v1.2.1 bundles bulk guides for the main skill and five YouTube skills. Rerun `flashdata setup` after upgrading to refresh unmodified skills; MCP is optional. To use an existing key, run `flashdata auth login` before setup. For the uv installation option, see the [CLI setup guide](https://github.com/flashdatadev/flashdata-cli#readme).
 
 Installation and the offline checks above need no API key. If a previous manual or Homebrew installation exists, check `command -v flashdata`; RPM installs `/usr/bin/flashdata`, which another entry earlier in `PATH` can shadow. Avoid managing the same executable with multiple package managers.
 
@@ -76,12 +76,12 @@ Uninstalling preserves your profiles, credentials and run history. No package sc
 ## Packages and trust
 
 - Stable endpoint: [flashdatadev.github.io/rpm](https://flashdatadev.github.io/rpm/); [repository configuration](https://flashdatadev.github.io/rpm/flashdata.repo), [public certificate](https://flashdatadev.github.io/rpm/flashdata.asc), [package inventory](https://flashdatadev.github.io/rpm/packages.json).
-- CLI **1.2.0**, RPM version/release **1.2.0-1**, package name **flashdata**. Both architectures contain the byte-identical executable from the [official v1.2.0 release](https://github.com/flashdatadev/flashdata-cli/releases/tag/v1.2.0), with documentation, examples, a man page and third-party licenses.
+- CLI **1.2.1**, RPM version/release **1.2.1-1**, package name **flashdata**. Both architectures contain the byte-identical executable from the [official v1.2.1 release](https://github.com/flashdatadev/flashdata-cli/releases/tag/v1.2.1), with documentation, examples, a man page and third-party licenses.
 - Dedicated RSA-4096 RPM signing certificate: `23AB58683E85FE7236D369713D19EA52D181CC36`, identity `FlashData RPM Signing <support@flashdata.dev>`. Individual RPMs and `repomd.xml` are signed with SHA-256. This certificate is separate from the APT certificate.
 - `gpgcheck=1`, `repo_gpgcheck=1` and HTTPS verification remain enabled. `includepkgs=flashdata` limits what this repository supplies. RPM package certificates are imported into the system-wide RPM trust database; they are not scoped to one repository. DNF's metadata keyrings are per repository.
 - Package bytes and SHA-256 values are pinned in [manifest.json](manifest.json). Existing package versions are never rebuilt or re-signed in place. Updated metadata is published only after candidate installation, upgrade and rejection tests pass. Old packages and hash-named indexes are retained.
 - `metadata_expire=6h` controls DNF cache freshness, not a cryptographic expiry guarantee. RPM repository metadata has no APT-style `Valid-Until`. The signing certificate expires after two years; signing refuses certificates within 30 days of expiry. Maintainers must rotate before expiry. Weekly runs refresh metadata and repeat the full checks.
 
-See [CI results](https://github.com/flashdatadev/rpm/actions/workflows/publish.yml), [maintenance and recovery](docs/maintaining.md) and [security reporting](SECURITY.md). Every candidate/public container upgrades the actual signed **1.1.2-1** package to **1.2.0-1**, verifies the installed executable hash and preserves user state. Tests also check a signed **1.2.0-0.upgradetest** packaging fixture, which is never publicly indexed. The original signed 1.0.0 packages remain available unchanged.
+See [CI results](https://github.com/flashdatadev/rpm/actions/workflows/publish.yml), [maintenance and recovery](docs/maintaining.md) and [security reporting](SECURITY.md). Every candidate/public container upgrades the actual signed **1.2.0-1** package to **1.2.1-1**, verifies the installed executable hash and preserves user state. Tests also check a signed **1.2.1-0.upgradetest** packaging fixture, which is never publicly indexed. The original signed 1.0.0 packages remain available unchanged.
 
 Support: [support@flashdata.dev](mailto:support@flashdata.dev) · [flashdata.dev](https://flashdata.dev)
