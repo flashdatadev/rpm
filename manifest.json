@@ -125,6 +125,24 @@
         "x86_64": "6d87cf8000fb48b7c6ecdbcd1aea850384f3adc8295cf2af5e461650571ad258",
         "aarch64": "c0d962401c6f53986105743f871967df241f86774d877d5484a1b63363307b2d"
       }
+    },
+    {
+      "version": "1.3.0",
+      "release": "1",
+      "source_commit": "bd84d594f4a822b7400358a750a73d6dab0a2bb3",
+      "source_date_epoch": 1793879012,
+      "archives": {
+        "x86_64": "ddab68b7ef312d9db72d17dbb3015f2154fca963fe724d48fdb458ef76905bb3",
+        "aarch64": "8085ecdee0f90923e3f090e703fd10a7d0969a9c86c2ec40d9943586cb673170"
+      },
+      "executables": {
+        "x86_64": "f497f0414c5dd6ca5a552b09f087e500a3721c5e79e01ab4a916a86807603ea6",
+        "aarch64": "43483c960e15a150547fa348f9996dfbadd280f33a98c7cc480e35cb8f8660dd"
+      },
+      "packages": {
+        "x86_64": "eece9775bc157746fc3846f9cf9a8cd0fc739c70f2710348ada5a555168da375",
+        "aarch64": "3e0a7d46fec275e258870e35464939a65d32f41c53ab95db6b9efca4674b9e3c"
+      }
     }
   ]
 }
